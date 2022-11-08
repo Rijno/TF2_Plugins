@@ -2,6 +2,8 @@
 #include <sdktools>
 #include <tf2>
 #include <tf2_stocks>
+#include <tf2items>
+#tryinclude <tf2items_giveweapon>
 
 // ----------------------------------------------------------------------------
 
@@ -42,8 +44,8 @@ public void OnPluginStart()
 	// List of TF2 events: https://wiki.alliedmods.net/Team_Fortress_2_Events#player_damaged
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Pre); 
 	HookEvent("teamplay_round_start", OnRoundStart, EventHookMode_Pre); 
-	HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
-	HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
+	//HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
+	//HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
 
 }
 
@@ -52,12 +54,13 @@ public void OnAllPluginsLoaded()
 	// ResizePlayer Plugin settings
 	ServerCommand("sm_resize_logging %d", 0) // No logging, spams server console	
 	ServerCommand("sm_resize_notify %d", 0) // No notifications
+	ServerCommand("sm_resize_damage %d", 1) // Scales with size
 }
 
 public void OnEventShutDown()
 {	
-	UnhookEvent("player_death", OnPlayerDeath);
-	UnhookEvent("player_hurt", OnPlayerHurt);
+	//UnhookEvent("player_death", OnPlayerDeath);
+	//UnhookEvent("player_hurt", OnPlayerHurt);
 	UnhookEvent("teamplay_round_start", OnRoundStart); 
 	UnhookEvent("player_spawn", OnPlayerSpawn);
 
@@ -81,7 +84,16 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 {
 	PrintToServer("SHRINK - OnPlayerSpawn");
 
-	// Skip if round is not active
+	// Force class medic, doesnt work on bots, they kill themselved to balance teams
+	//TF2_SetPlayerClass(client, TFClass_Medic);
+	//ServerCommand("sm_giveweapon #%d %d", GetEventInt(event, "userid"), 17); // Syringe Id for TF2Items GiveWeapon
+	// TODO force needle gun
+	// new Handle:hWeapon = PrepareItemHandle(20, TF2_GetPlayerClass(client));
+	// new entity = TF2Items_GiveNamedItem(client, hWeapon);
+	// CloseHandle(hWeapon);
+
+
+	// Skip shrinking if round is not active
 	RoundState state = GameRules_GetRoundState();
 	PrintToServer("SHRINK - RoundState: %d", state);
 	if (state != RoundState:RoundState_RoundRunning) return Plugin_Continue;
@@ -122,7 +134,7 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 	kvScale.SetFloat(Key, size);
 
 	// Always spawn with normal sized head
-	ServerCommand("sm_resizehead #%d %f", userId, DEFAULT_HEAD_SIZE) 
+	ServerCommand("sm_resizehead #%d %f", userId, DEFAULT_HEAD_SIZE);
 	kvHeadScale.SetFloat(Key, DEFAULT_HEAD_SIZE);
 
 	// Save to file for debug
@@ -137,7 +149,7 @@ public Action:OnPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast
 {
 	// If using Syringe gun, increase head size of victim.
 	int weaponId = GetEventInt(event, "weaponid");
-	if (weaponId != 20) return Plugin_Continue; // Syringe gun is ID 20
+	if (weaponId != 20) return Plugin_Continue; // Syringe gun is WeaponId 20
 
 	decl String:UserId[16];
 	decl String:SteamId[16];
@@ -175,7 +187,6 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	//Explode(client, userId);
 
 	// Explode into gibs: https://forums.alliedmods.net/showthread.php?t=81874
-	// TODO clean up
 	CreateTimer(0.1, DeleteRagdoll, client)
 		
 	decl Ent

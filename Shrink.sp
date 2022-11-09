@@ -111,9 +111,9 @@ void AttachHandlers()
 	AddCommandListener(OnPlayerCommand, "joinclass");
 
 	// Hook game events
-	HookEvent("player_spawn", OnPlayerSpawn);
-	HookEvent("player_death", OnPlayerDeath);
-	HookEvent("teamplay_round_start", OnRoundStart);
+	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode:EventHookMode_Pre);
+	HookEvent("player_death", OnPlayerDeath, EventHookMode:EventHookMode_Pre);
+	HookEvent("teamplay_round_start", OnRoundStart, EventHookMode:EventHookMode_Pre);
 }
 
 void DetachHandlers()
@@ -126,9 +126,9 @@ void DetachHandlers()
 	RemoveCommandListener(OnPlayerCommand, "joinclass");
 
 	// Unhook game events
-	UnhookEvent("teamplay_round_start", OnRoundStart);
-	UnhookEvent("player_spawn", OnPlayerSpawn);
-	UnhookEvent("player_death", OnPlayerDeath);
+	UnhookEvent("teamplay_round_start", OnRoundStart, EventHookMode:EventHookMode_Pre);
+	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode:EventHookMode_Pre);
+	UnhookEvent("player_death", OnPlayerDeath, EventHookMode:EventHookMode_Pre);
 }
 
 public Action:OnShrinkEnabled(client, args)

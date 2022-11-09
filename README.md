@@ -1,5 +1,8 @@
 # TF2_Plugins
 
+Using VS:Code extension 
+https://github.com/Sarrus1/sourcepawn-vscode/wiki
+
 Requires Metamod:Soure & SourceMod
 - https://www.metamodsource.net/
 - http://www.sourcemod.net

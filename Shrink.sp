@@ -64,6 +64,7 @@ public void OnPluginStart()
 	ResetAllClients(g_fDefaultSize);
 	AttachHandlers();
 
+	// Admin commands
 	RegAdminCmd("sm_shrink", OnShrinkEnabled, ADMFLAG_GENERIC, "0 = Disable plugin, 1 = Enable plugin.");	
 }
 
@@ -95,8 +96,8 @@ void DetachHandlers()
 {
 	// Unhook game events
 	UnhookEvent("teamplay_round_start", OnRoundStart, EventHookMode:EventHookMode_Pre);
-	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode:EventHookMode_Pre);
 	UnhookEvent("player_death", OnPlayerDeath, EventHookMode:EventHookMode_Pre);
+	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode:EventHookMode_Pre);
 }
 
 // ----------------------------------------------------------------------------

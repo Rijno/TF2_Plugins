@@ -5,7 +5,7 @@
 
 // ----------------------------------------------------------------------------
 
-#define PLUGIN_VERSION      "0.1"
+#define PLUGIN_VERSION      "1.0"
 #define CHAT_TAG            "\x05[SM]\x01 "
 #define CONSOLE_TAG         "[SM] "
 #define DEFAULT_SIZE        "1.0"
@@ -21,10 +21,6 @@ new Float:g_fShrinkStep;
 // Arrays use client as index
 new Float:Scale[MAXPLAYERS+1] = 1.0;
 new bool:KilledByOther[MAXPLAYERS+1] = false;
-new bool:KilledSelf[MAXPLAYERS+1] = false;
-new bool:MoveToSpec[MAXPLAYERS+1] = false;
-new bool:JoinTeam[MAXPLAYERS+1] = false;
-new bool:JoinClass[MAXPLAYERS+1] = false;
 
 // ----------------------------------------------------------------------------
 
@@ -44,7 +40,7 @@ public Plugin myinfo =
 public void OnPluginStart()
 {
 	// ConVars
-	CreateConVar("sm_shrink_version", PLUGIN_VERSION, "\"Shrink Mode\" version.", FCVAR_SPONLY | FCVAR_NOTIFY);
+	CreateConVar("sm_shrink_version", PLUGIN_VERSION, "Plugin version. Do not edit.", FCVAR_SPONLY | FCVAR_NOTIFY);
 
 	new Handle:hEnabled = CreateConVar("sm_shrink_enabled", "1", "0 = Disable plugin, 1 = Enable plugin.");
 	HookConVarChange(hEnabled, ConVarEnabledChanged);
@@ -68,7 +64,7 @@ public void OnPluginStart()
 	ResetAllClients(g_fDefaultSize);
 	AttachHandlers();
 
-	RegAdminCmd("sm_shrink_enabled", OnShrinkEnabled, ADMFLAG_GENERIC, "Toggles Shrink plugin.");	
+	RegAdminCmd("sm_shrink", OnShrinkEnabled, ADMFLAG_GENERIC, "0 = Disable plugin, 1 = Enable plugin.");	
 }
 
 public void OnAllPluginsLoaded()
@@ -87,29 +83,8 @@ public void OnEventShutDown()
 
 // ----------------------------------------------------------------------------
 
-public Action:OnPlayerCommand(client, const String:command[], args)
-{
-	PrintToServer("Shrink command intercepted: %s", command);
-	
-	if(StrEqual(command, "kill", false) || StrEqual(command, "explode", false))
-		KilledSelf[client] = true;
-	else if(StrEqual(command, "spectate", false))
-		MoveToSpec[client] = true;
-	else if(StrEqual(command, "jointeam", false))
-		JoinTeam[client] = true;
-	else if(StrEqual(command, "joinclass", false))
-		JoinClass[client] = true;
-}
-
 void AttachHandlers()
 {
-	// Add command listeners
-	AddCommandListener(OnPlayerCommand, "kill");
-	AddCommandListener(OnPlayerCommand, "explode");
-	AddCommandListener(OnPlayerCommand, "spectate");
-	AddCommandListener(OnPlayerCommand, "jointeam");
-	AddCommandListener(OnPlayerCommand, "joinclass");
-
 	// Hook game events
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode:EventHookMode_Pre);
 	HookEvent("player_death", OnPlayerDeath, EventHookMode:EventHookMode_Pre);
@@ -118,13 +93,6 @@ void AttachHandlers()
 
 void DetachHandlers()
 {
-	// Remove command listeners
-	RemoveCommandListener(OnPlayerCommand, "kill");
-	RemoveCommandListener(OnPlayerCommand, "explode");
-	RemoveCommandListener(OnPlayerCommand, "spectate");
-	RemoveCommandListener(OnPlayerCommand, "jointeam");
-	RemoveCommandListener(OnPlayerCommand, "joinclass");
-
 	// Unhook game events
 	UnhookEvent("teamplay_round_start", OnRoundStart, EventHookMode:EventHookMode_Pre);
 	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode:EventHookMode_Pre);
@@ -133,16 +101,19 @@ void DetachHandlers()
 
 public Action:OnShrinkEnabled(client, args)
 {
-	PrintToServer("SHRINK ENABLED: %d", g_bEnabled);
 	if (g_bEnabled)
 	{
 		ResetAllClients(g_fDefaultSize); // Set all players to default plugin size
 		AttachHandlers();
+		PrintToServer("%sShrink mode enabled", CONSOLE_TAG);
+		PrintToChatAll("%sShrink mode enabled", CHAT_TAG);
 	}
 	else
 	{
 		DetachHandlers();		
 		ResetAllClients(1.0); // Set all players to default TF2 size
+		PrintToServer("%sShrink mode disabled", CONSOLE_TAG);
+		PrintToChatAll("%sShrink mode disabled", CHAT_TAG);
 	}
 	return Plugin_Handled;
 }
@@ -160,15 +131,12 @@ public ConVarShrinkStepChanged(Handle:convar, const String:oldvalue[], const Str
 
 public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	PrintToServer("SHRINK - OnRoundStart");
 	ResetAllClients(g_fDefaultSize);
 	return Plugin_Continue;
 }
 
 public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	PrintToServer("SHRINK - OnPlayerDeath");
-
 	// Get attacker
 	int attackerId = GetEventInt(event, "attacker");	
 
@@ -182,33 +150,18 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 
 public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	PrintToServer("SHRINK - OnPlayerSpawn");
-
 	// Get player info
 	int userId = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userId);
 
-	PrintToServer("SHRINK - UID: #%d, Client: %d, KilledByOther: %d, Suicide: %d, Spec: %d, TeamSwitch: %d, ClassSwitch: %d", userId, client, KilledByOther[client], KilledSelf[client], MoveToSpec[client], JoinTeam[client], JoinClass[client]);
-	if(	!KilledByOther[client] // Ignore suicide
-		|| KilledSelf[client] // Ignore suicide by kill or explode commands
-		|| MoveToSpec[client] // Ignore moved to spec
-		|| JoinTeam[client] // Ignore team switch
-		|| JoinClass[client]) // Ignore class switch
-		{
-			ResetClientState(client);
-			return Plugin_Continue;
-		}
-
-	// Skip shrinking if round is not active
-	RoundState state = GameRules_GetRoundState();
-	PrintToServer("SHRINK - RoundState: %d", state);
-	if (state == RoundState:RoundState_Preround)
+	if(	!KilledByOther[client]) // Ignore suicide by death event
 	{
-		PrintToServer("SHRINK - PreRound: #%d", userId);
-		ServerCommand("sm_resize #%d %f", userId, g_fDefaultSize);
 		ResetClientState(client);
 		return Plugin_Continue;
 	}
+
+	// Skip shrinking if round is not active
+	RoundState state = GameRules_GetRoundState();
 	if (state != RoundState:RoundState_RoundRunning) 
 	{ 
 		ResetClientState(client); 
@@ -234,7 +187,7 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 		PrintToChat(client, "%sYou are becoming tiny baby! Scale: %d%%", CHAT_TAG, RoundToNearest(size * 100.0));
 	}
 
-	PrintToServer("SHRINK - Player: %s, Scale: %d%%", userId, RoundToNearest(size * 100.0));
+	PrintToServer("%sShrinking player #%d to %d%%", CONSOLE_TAG, userId, RoundToNearest(size * 100.0));
 
 	// Set size
 	ServerCommand("sm_resize #%d %f", userId, size);
@@ -249,10 +202,6 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 void ResetClientState(int client)
 {
 	KilledByOther[client] = false;
-	KilledSelf[client] = false;
-	MoveToSpec[client] = false;
-	JoinTeam[client] = false;
-	JoinClass[client] = false;
 }
 
 // ----------------------------------------------------------------------------
@@ -260,16 +209,18 @@ void ResetClientState(int client)
 void ResetAllClients(float size)
 {
 	// Resets all targets' sizes to DefaultSize ConVar and reset client state. 
-	for (new client = 1; client <= MaxClients; client++)
+	for (new client = 1; client < MaxClients; client++)
 	{
-		if (IsClientInGame(client) && (!IsFakeClient(client)) && IsPlayerAlive(client))
+		Scale[client] = size;			
+		ResetClientState(client);
+
+		if (IsClientConnected(client) && IsPlayerAlive(client))
 		{
 			int userId = GetClientUserId(client);
-			Scale[client] = size;			
-			ResetClientState(client);
 			ServerCommand("sm_resize #%d %f", userId, size);
 		}
 	}
+	PrintToServer("%sReset scale of all players to %d%%", CONSOLE_TAG, RoundToNearest(g_fDefaultSize * 100.0));
 	PrintToChatAll("%sYou are normal size! Scale: %d%%", CHAT_TAG, RoundToNearest(g_fDefaultSize * 100.0))
 }
 

@@ -1,11 +1,12 @@
 # TF2_Plugins
 
-Using VS:Code extension 
-https://github.com/Sarrus1/sourcepawn-vscode/wiki
+Repository for my [SourceMod](http://www.sourcemod.net) plugins for TF2 Dedicated Servers.
 
-Requires Metamod:Soure & SourceMod
+- Shrink
+- Injector
+
+Requires Metamod:Soure & SourceMod to be installed on your Dedicated Server.
 - https://www.metamodsource.net/
 - http://www.sourcemod.net
 
-Required plugins:
-- ResizePlayers https://forums.alliedmods.net/showthread.php?t=193255
+See individual plugins for more information

@@ -41,6 +41,8 @@ Make sure you also download the [ResizePlayers](https://forums.alliedmods.net/sh
   - [x] Configurable with ConVars.
 
 ### TODOs
+- [ ] Weapons that have a *negative health on wearer* slowly reduces max health.
+- [ ] Can stil use secondary weapons like Demo's shield charge. Even if you can't switch weaponsat all.
 - [x] Scale inflation on hit based on damage.
   - [ ] Configurable with ConVars.
 - [ ] Explode the player on a specific scale.

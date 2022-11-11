@@ -99,8 +99,13 @@ void DetachHandlers()
 	UnhookEvent("player_death", OnPlayerDeath, EventHookMode:EventHookMode_Pre);
 }
 
-public Action:OnShrinkEnabled(client, args)
+// ----------------------------------------------------------------------------
+
+void SetShrinkEnabled(bool enabled)
 {
+	if (enabled == g_bEnabled) return;
+	g_bEnabled = enabled;
+
 	if (g_bEnabled)
 	{
 		ResetAllClients(g_fDefaultSize); // Set all players to default plugin size
@@ -115,13 +120,27 @@ public Action:OnShrinkEnabled(client, args)
 		PrintToServer("%sShrink mode disabled", CONSOLE_TAG);
 		PrintToChatAll("%sShrink mode disabled", CHAT_TAG);
 	}
-	return Plugin_Handled;
+}
+
+// ----------------------------------------------------------------------------
+// Admin command events
+
+public Action:OnShrinkEnabled(client, args)
+{
+	if (args != 1) { PrintToServer("sm_shrink requres 1 parameter"); return Plugin_Handled; }
+	new enabled = GetCmdArgInt(1);
+	SetShrinkEnabled(enabled != 0);	
+	return Plugin_Continue;
 }
 
 // ----------------------------------------------------------------------------
 // ConVar events
 
-public ConVarEnabledChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_bEnabled = (StringToInt(newvalue) != 0); OnShrinkEnabled(-1, 0); }
+public ConVarEnabledChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) 
+{ 	
+	new enabled = StringToInt(newvalue);
+	SetShrinkEnabled(enabled != 0);	
+}
 public ConVarDefaultSizeChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_fDefaultSize = StringToFloat(newvalue); }
 public ConVarMinSizeChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_fMinSize = StringToFloat(newvalue); }
 public ConVarShrinkStepChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_fShrinkStep = StringToFloat(newvalue); }
@@ -220,8 +239,8 @@ void ResetAllClients(float size)
 			ServerCommand("sm_resize #%d %f", userId, size);
 		}
 	}
-	PrintToServer("%sReset scale of all players to %d%%", CONSOLE_TAG, RoundToNearest(g_fDefaultSize * 100.0));
-	PrintToChatAll("%sYou are normal size! Scale: %d%%", CHAT_TAG, RoundToNearest(g_fDefaultSize * 100.0))
+	PrintToServer("%sReset scale of all players to %d%%", CONSOLE_TAG, RoundToNearest(size * 100.0));
+	PrintToChatAll("%sYou are normal size! Scale: %d%%", CHAT_TAG, RoundToNearest(size * 100.0))
 }
 
 // ----------------------------------------------------------------------------

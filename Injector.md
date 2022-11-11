@@ -1,4 +1,4 @@
-# TimeSplitters Shrink game mode for TF2
+# Injector: The TimeSplitters Injector weapon turned into a a game mode for TF2.
 
 This is a [SourceMod](http://www.sourcemod.net) plugin for TF2 Dedicated Servers.
 
@@ -20,6 +20,9 @@ Make sure you also download the [ResizePlayers](https://forums.alliedmods.net/sh
 ## Configuring the plugin (ConVars)
 - **sm_injector_version** | Plugin version. Do not edit.
 - **sm_injector_enabled** | 0 = Disable plugin, 1 = Enable plugin. | **Default Value:** 1
+- **sm_injector_defaultsize** | Default scale of players' heads. | **Default Value:** 1.0
+- **sm_injector_forcemedic** | "0 = Allow all classes, 1 = Force players to the Medic class. | **Default Value:** 1
+- **sm_injector_forceprimary** | 0 = Allow all weapon slots, 1 = Force players to use their primary weapon. | **Default Value:** 1
 
 ## Admin commands
 - **sm_injector [0/1]** | 0 = Disable plugin, 1 = Enable plugin | **Default Flag:** GENERIC (B)

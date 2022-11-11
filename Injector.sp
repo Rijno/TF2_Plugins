@@ -32,9 +32,9 @@ new bool:Explode[MAXPLAYERS+1] = false;
 // - ResizePlayer plugin
 public Plugin myinfo =
 {
-	name        = "TimeSplitters Injector gamemode",
+	name        = "Injector",
 	author      = "Rijno",
-	description = "Inspired by the TimeSplitters Injector weapon. https://timesplitters.fandom.com/wiki/Injector",
+	description = "Game mode inspired by the TimeSplitters Injector weapon. https://timesplitters.fandom.com/wiki/Injector",
 	version     = PLUGIN_VERSION,
 	url         = "https://github.com/Rijno/TF2_Plugins"
 };
@@ -50,7 +50,7 @@ public void OnPluginStart()
 	HookConVarChange(hEnabled, ConVarEnabledChanged);
 	g_bEnabled = GetConVarBool(hEnabled);
 
-	new Handle:hDefaultHeadSize = CreateConVar("sm_injector_defaultheadsize", DEFAULT_HEAD_SIZE, "Default scale of players heads.", _, true, 0.1, true, 3.0);
+	new Handle:hDefaultHeadSize = CreateConVar("sm_injector_defaultheadsize", DEFAULT_HEAD_SIZE, "Default scale of players' heads.", _, true, 0.1, true, 3.0);
 	HookConVarChange(hDefaultHeadSize, ConVarDefaultHeadSizeChanged);
 	GetConVarString(hDefaultHeadSize, g_szDefault, sizeof(g_szDefault));
 	g_fDefaultHeadSize = StringToFloat(g_szDefault);
@@ -62,13 +62,6 @@ public void OnPluginStart()
 	new Handle:hForcePrimary = CreateConVar("sm_injector_forceprimary", DEFAULT_FORCE_PRIMARY, "0 = Allow all weapon slots, 1 = Force players to use their primary weapon.");
 	HookConVarChange(hForcePrimary, ConVarForcePrimaryChanged);
 	g_bForcePrimary = GetConVarBool(hForcePrimary);
-
-	// TODO ConVars
-	// new Handle:hDefaultSize = CreateConVar("sm_injector_defaultheadsize", DEFAULT_HEAD_SIZE, "Default scale of players heads.", _, true, 0.1, true, 3.0);
-	// HookConVarChange(g_fDefaultHeadSize, ConVarDefaultSizeChanged);
-	// GetConVarString(g_fDefaultHeadSize, g_szDefault, sizeof(g_szDefault));
-	// g_fDefaultHeadSize = StringToFloat(g_szDefault);
-	// g_HeadSizefIncrement = StringToFloat(DEFAULT_HEAD_SIZE_INCREMENT)
 
 	ResetAllClients(g_fDefaultHeadSize);
 	AttachHandlers();
@@ -98,10 +91,7 @@ void AttachHandlers()
 	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Pre); 
 	HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
 	HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
-
-
 	HookEvent("post_inventory_application", OnInventoryApplication, EventHookMode_Pre);
-
 	HookEvent("teamplay_round_start", OnRoundStart, EventHookMode_Pre); 
 }
 
@@ -109,9 +99,7 @@ void DetachHandlers()
 {
 	// Unhook game events
 	UnhookEvent("teamplay_round_start", OnRoundStart, EventHookMode_Pre); 
-
 	UnhookEvent("post_inventory_application", OnInventoryApplication, EventHookMode_Pre);
-
 	UnhookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
 	UnhookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
 	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Pre);
@@ -161,7 +149,6 @@ public ConVarForcePrimaryChanged(Handle:convar, const String:oldvalue[], const S
 
 public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	PrintToServer("INJECTOR - OnRoundStart");
 	ResetAllClients(g_fDefaultHeadSize);
 	return Plugin_Continue;
 }
@@ -202,8 +189,7 @@ public Action:OnPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast
 	// Get player info
 	int userId = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userId);
-
-	// TODO explode player on specific scale size, with delay
+	
 	// 0.01 per point of damage
 	int damageAmount = GetEventInt(event, "damageamount");
 	
@@ -213,8 +199,11 @@ public Action:OnPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast
 	HeadScale[client] = (HeadScale[client] + (float(damageAmount) / 50));
 	// TODO configurable with ConVars, 100 is 0.01 per hit, 50 is 0.02 per hit.
 
-	PrintToServer("Client %d new size: %f", client, HeadScale[client]);
+	// TODO explode player on specific scale size, 
+	// specific scale based on class max health
+	// with a delay, stay at the size for x seconds then explode (can be killed during this time)
 
+	PrintToServer("Client %d new size: %f", client, HeadScale[client]);
 	ServerCommand("sm_resizehead #%d %f", userId, HeadScale[client]);
 
 	return Plugin_Continue;

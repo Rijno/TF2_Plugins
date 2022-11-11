@@ -1,4 +1,4 @@
-# TimeSplitters Shrink game mode for TF2
+# Shrink: The TimeSplitters Shrink game mode for TF2
 
 This is a [SourceMod](http://www.sourcemod.net) plugin for TF2 Dedicated Servers.
 

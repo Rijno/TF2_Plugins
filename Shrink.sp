@@ -28,9 +28,9 @@ new bool:KilledByOther[MAXPLAYERS+1] = false;
 // - ResizePlayer plugin
 public Plugin myinfo =
 {
-	name        = "TimeSplitters Shrink Mode",
+	name        = "Shrink",
 	author      = "Rijno",
-	description = "Inspired by the TimeSplitters Shrink gamemode. https://timesplitters.fandom.com/wiki/Shrink_(Mode)",
+	description = "Game mode inspired by the TimeSplitters Shrink game mode. https://timesplitters.fandom.com/wiki/Shrink_(Mode)",
 	version     = PLUGIN_VERSION,
 	url         = "https://github.com/Rijno/TF2_Plugins"
 };

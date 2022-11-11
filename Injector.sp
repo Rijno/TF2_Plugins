@@ -2,23 +2,29 @@
 #include <sdktools>
 #include <tf2>
 #include <tf2_stocks>
-#include <tf2items>
-#tryinclude <tf2items_giveweapon>
 
 // ----------------------------------------------------------------------------
 
+#define PLUGIN_VERSION				"1.0"
+#define CHAT_TAG					"\x05[SM]\x01 "
+#define CONSOLE_TAG					"[SM] "
+#define DEFAULT_HEAD_SIZE			"1.0"
+#define DEFAULT_FORCE_MEDIC			"1"
+#define DEFAULT_FORCE_PRIMARY		"1"
 
-#define PLUGIN_VERSION      			"0.1"
-#define DEFAULT_SIZE    				1.0
-#define DEFAULT_MIN_SIZE    			0.3
-#define DEFAULT_SIZE_REDUCTION    		0.05
-#define DEFAULT_HEAD_SIZE    			1.0
-#define DEFAULT_HEAD_SIZE_INCREMENT     0.25
+#define DEFAULT_HEAD_SIZE_INCREMENT	"0.25"
 
-KeyValues kvScale;
-KeyValues kvHeadScale;
+new bool:g_bEnabled;
+new String:g_szDefault[16];
+new Float:g_fDefaultHeadSize;
+new bool:g_bForceMedic;
+new bool:g_bForcePrimary;
 
-new g_Explode[MAXPLAYERS+1]
+new Float:g_HeadSizefIncrement;
+
+// Arrays use client as index
+new Float:HeadScale[MAXPLAYERS+1] = 1.0;
+new bool:Explode[MAXPLAYERS+1] = false;
 
 // ----------------------------------------------------------------------------
 
@@ -26,27 +32,49 @@ new g_Explode[MAXPLAYERS+1]
 // - ResizePlayer plugin
 public Plugin myinfo =
 {
-	name = "Shrink",
-	author = "Mui",
-	description = "Shrink",
-	version = PLUGIN_VERSION,
-	url = "http://www.sourcemod.net/"
+	name        = "TimeSplitters Injector gamemode",
+	author      = "Rijno",
+	description = "Inspired by the TimeSplitters Injector weapon. https://timesplitters.fandom.com/wiki/Injector",
+	version     = PLUGIN_VERSION,
+	url         = "https://github.com/Rijno/TF2_Plugins"
 };
 
 // ----------------------------------------------------------------------------
 
 public void OnPluginStart()
 {	
-	PrintToServer("Loaded Sourcemod plugin: Shrink v%d", PLUGIN_VERSION);
-	kvScale = new KeyValues("ShrinkScale");
-	kvHeadScale = new KeyValues("ShrinkHeadScale");
+	// ConVars
+	CreateConVar("sm_injector_version", PLUGIN_VERSION, "Plugin version. Do not edit.", FCVAR_SPONLY | FCVAR_NOTIFY);
 
-	// List of TF2 events: https://wiki.alliedmods.net/Team_Fortress_2_Events#player_damaged
-	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Pre); 
-	HookEvent("teamplay_round_start", OnRoundStart, EventHookMode_Pre); 
-	//HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
-	//HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
+	new Handle:hEnabled = CreateConVar("sm_injector_enabled", "1", "0 = Disable plugin, 1 = Enable plugin.");
+	HookConVarChange(hEnabled, ConVarEnabledChanged);
+	g_bEnabled = GetConVarBool(hEnabled);
 
+	new Handle:hDefaultHeadSize = CreateConVar("sm_injector_defaultheadsize", DEFAULT_HEAD_SIZE, "Default scale of players heads.", _, true, 0.1, true, 3.0);
+	HookConVarChange(hDefaultHeadSize, ConVarDefaultHeadSizeChanged);
+	GetConVarString(hDefaultHeadSize, g_szDefault, sizeof(g_szDefault));
+	g_fDefaultHeadSize = StringToFloat(g_szDefault);
+
+	new Handle:hForceMedic = CreateConVar("sm_injector_forcemedic", DEFAULT_FORCE_MEDIC, "0 = Allow all classes, 1 = Force players to the Medic class.");
+	HookConVarChange(hForceMedic, ConVarForceMedicChanged);
+	g_bForceMedic = GetConVarBool(hForceMedic);
+
+	new Handle:hForcePrimary = CreateConVar("sm_injector_forceprimary", DEFAULT_FORCE_PRIMARY, "0 = Allow all weapon slots, 1 = Force players to use their primary weapon.");
+	HookConVarChange(hForcePrimary, ConVarForcePrimaryChanged);
+	g_bForcePrimary = GetConVarBool(hForcePrimary);
+
+	// TODO ConVars
+	// new Handle:hDefaultSize = CreateConVar("sm_injector_defaultheadsize", DEFAULT_HEAD_SIZE, "Default scale of players heads.", _, true, 0.1, true, 3.0);
+	// HookConVarChange(g_fDefaultHeadSize, ConVarDefaultSizeChanged);
+	// GetConVarString(g_fDefaultHeadSize, g_szDefault, sizeof(g_szDefault));
+	// g_fDefaultHeadSize = StringToFloat(g_szDefault);
+	// g_HeadSizefIncrement = StringToFloat(DEFAULT_HEAD_SIZE_INCREMENT)
+
+	ResetAllClients(g_fDefaultHeadSize);
+	AttachHandlers();
+
+	// Admin commands
+	RegAdminCmd("sm_injector", OnInjectorEnabled, ADMFLAG_GENERIC, "0 = Disable plugin, 1 = Enable plugin.");	
 }
 
 public void OnAllPluginsLoaded()
@@ -54,91 +82,115 @@ public void OnAllPluginsLoaded()
 	// ResizePlayer Plugin settings
 	ServerCommand("sm_resize_logging %d", 0) // No logging, spams server console	
 	ServerCommand("sm_resize_notify %d", 0) // No notifications
-	ServerCommand("sm_resize_damage %d", 1) // Scales with size
+	ServerCommand("sm_resize_damage %d", 0) // Scales with size
 }
 
 public void OnEventShutDown()
 {	
-	//UnhookEvent("player_death", OnPlayerDeath);
-	//UnhookEvent("player_hurt", OnPlayerHurt);
-	UnhookEvent("teamplay_round_start", OnRoundStart); 
-	UnhookEvent("player_spawn", OnPlayerSpawn);
-
-	delete kvScale;
-	delete kvHeadScale;
+	DetachHandlers();
 }
+
+// ----------------------------------------------------------------------------
+
+void AttachHandlers()
+{
+	// Hook game events
+	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Pre); 
+	HookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
+	HookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
+
+
+	HookEvent("post_inventory_application", OnInventoryApplication, EventHookMode_Pre);
+
+	HookEvent("teamplay_round_start", OnRoundStart, EventHookMode_Pre); 
+}
+
+void DetachHandlers()
+{
+	// Unhook game events
+	UnhookEvent("teamplay_round_start", OnRoundStart, EventHookMode_Pre); 
+
+	UnhookEvent("post_inventory_application", OnInventoryApplication, EventHookMode_Pre);
+
+	UnhookEvent("player_death", OnPlayerDeath, EventHookMode_Pre);
+	UnhookEvent("player_hurt", OnPlayerHurt, EventHookMode_Pre);
+	UnhookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Pre);
+}
+
+void SetInjectorEnabled(bool enabled)
+{
+	if (enabled == g_bEnabled) return;
+	g_bEnabled = enabled;
+
+	if (g_bEnabled)
+	{
+		ResetAllClients(g_fDefaultHeadSize); // Set all players to default plugin size
+		AttachHandlers();
+		PrintToServer("%sInjector mode enabled", CONSOLE_TAG);
+		PrintToChatAll("%sInjector mode enabled", CHAT_TAG);
+	}
+	else
+	{
+		DetachHandlers();		
+		ResetAllClients(1.0); // Set all players to default TF2 size
+		PrintToServer("%sInjector mode disabled", CONSOLE_TAG);
+		PrintToChatAll("%sInjector mode disabled", CHAT_TAG);
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Admin command events
+
+public Action:OnInjectorEnabled(client, args)
+{
+	if (args != 1) { PrintToServer("sm_injector requres 1 parameter"); return Plugin_Handled; }
+	new enabled = GetCmdArgInt(1);
+	SetInjectorEnabled(enabled != 0);	
+	return Plugin_Continue;
+}
+
+// ----------------------------------------------------------------------------
+// ConVar events
+
+public ConVarEnabledChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { new enabled = StringToInt(newvalue); SetInjectorEnabled(enabled != 0); }
+public ConVarDefaultHeadSizeChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_fDefaultHeadSize = StringToFloat(newvalue); }
+public ConVarForceMedicChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_bForceMedic = StringToInt(newvalue) != 0; }
+public ConVarForcePrimaryChanged(Handle:convar, const String:oldvalue[], const String:newvalue[]) { g_bForcePrimary = StringToInt(newvalue) != 0; }
 
 // ----------------------------------------------------------------------------
 
 public Action:OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	PrintToServer("SHRINK - OnRoundStart");
-	ResetSize();	
-
+	PrintToServer("INJECTOR - OnRoundStart");
+	ResetAllClients(g_fDefaultHeadSize);
 	return Plugin_Continue;
 }
 
 // ----------------------------------------------------------------------------
 
-public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:OnInventoryApplication(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	PrintToServer("SHRINK - OnPlayerSpawn");
-
-	// Force class medic, doesnt work on bots, they kill themselved to balance teams
-	//TF2_SetPlayerClass(client, TFClass_Medic);
-	//ServerCommand("sm_giveweapon #%d %d", GetEventInt(event, "userid"), 17); // Syringe Id for TF2Items GiveWeapon
-	// TODO force needle gun
-	// new Handle:hWeapon = PrepareItemHandle(20, TF2_GetPlayerClass(client));
-	// new entity = TF2Items_GiveNamedItem(client, hWeapon);
-	// CloseHandle(hWeapon);
-
-
-	// Skip shrinking if round is not active
-	RoundState state = GameRules_GetRoundState();
-	PrintToServer("SHRINK - RoundState: %d", state);
-	if (state != RoundState:RoundState_RoundRunning) return Plugin_Continue;
-
-	// Skip if no class is selected (likely that player has joined but not actually spawned)
-	if (GetEventInt(event, "class") == 0) return Plugin_Continue;
-
-	decl String:UserId[16];
-	decl String:SteamId[16];
-	decl String:PlayerName[64];
-	decl String:Key[32];
-
-	// Get player info and create unique Key.
+	// Note: sent when a player gets a whole new set of items, aka touches a resupply locker / respawn cabinet or spawns in.
+	PrintToServer("INJECTOR - OnInventoryApplication");
+	
+	// Get player info
 	int userId = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userId);
-	IntToString(userId, UserId, sizeof(UserId));
-	GetClientAuthId(client, AuthIdType:AuthId_Engine, SteamId, sizeof(SteamId));
-	GetClientName(client, PlayerName, sizeof(PlayerName));
-	Format(Key, sizeof(Key), "<%s><%s>", UserId, SteamId);
-	PrintToServer("SHRINK - UserID: %s, SteamID: %s, PlayerName: %s", UserId, SteamId, PlayerName);
 
-	// Size stuff
-	float size = kvScale.GetFloat(Key, DEFAULT_SIZE);
-	if (size <= DEFAULT_MIN_SIZE)  // Size limit
-	{
-		size = DEFAULT_MIN_SIZE;
-	}
-	else // Shrink
-	{
-		size = size - DEFAULT_SIZE_REDUCTION;
-		PrintToChat(client, "\x01\x0BYou are becoming tiny baby! Scale: %.3f", size);
-	}
+	// Force primary weapon by removing all weapon slots except the primary weapon slot
+	if (g_bForcePrimary) RemoveAllExceptPrimaryWeapon(client);
+}
 
-	PrintToServer("SHRINK - Player: %s, new size: %.3f", Key, size);
+public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	PrintToServer("INJECTOR - OnPlayerSpawn");
 
-	// Set size
-	ServerCommand("sm_resize #%d %f", userId, size)
-	kvScale.SetFloat(Key, size);
+	// Get player info
+	int userId = GetEventInt(event, "userid");
+	int client = GetClientOfUserId(userId);
 
-	// Always spawn with normal sized head
-	ServerCommand("sm_resizehead #%d %f", userId, DEFAULT_HEAD_SIZE);
-	kvHeadScale.SetFloat(Key, DEFAULT_HEAD_SIZE);
-
-	// Save to file for debug
-	//kv.ExportToFile("H:\\TF2\\SurfServer\\Shrink_sizes.txt");
+	// Force class medic, doesn't work on bots based on server settings. They kill themselves to balance teams
+	if (g_bForceMedic && !IsFakeClient(client)) ForceClientToMedic(client);
 
 	return Plugin_Continue;
 }
@@ -146,29 +198,24 @@ public Action:OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcas
 // ----------------------------------------------------------------------------
 
 public Action:OnPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
-{
-	// If using Syringe gun, increase head size of victim.
-	int weaponId = GetEventInt(event, "weaponid");
-	if (weaponId != 20) return Plugin_Continue; // Syringe gun is WeaponId 20
-
-	decl String:UserId[16];
-	decl String:SteamId[16];
-	decl String:PlayerName[64];
-	decl String:Key[32];
-
-	// Get player info and create unique Key.
+{	
+	// Get player info
 	int userId = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userId);
-	IntToString(userId, UserId, sizeof(UserId));
-	GetClientAuthId(client, AuthIdType:AuthId_Engine, SteamId, sizeof(SteamId));
-	GetClientName(client, PlayerName, sizeof(PlayerName));
-	Format(Key, sizeof(Key), "<%s><%s>", UserId, SteamId);
 
-	// Size stuff
-	float size = kvHeadScale.GetFloat(Key, DEFAULT_HEAD_SIZE);
-	kvHeadScale.SetFloat(Key, size + DEFAULT_HEAD_SIZE_INCREMENT);
+	// TODO explode player on specific scale size, with delay
+	// 0.01 per point of damage
+	int damageAmount = GetEventInt(event, "damageamount");
+	
+	// TODO scale increment based on damage done
+	// Increment head size of victim.
+	//HeadScale[client] = (size + g_HeadSizefIncrement);
+	HeadScale[client] = (HeadScale[client] + (float(damageAmount) / 50));
+	// TODO configurable with ConVars, 100 is 0.01 per hit, 50 is 0.02 per hit.
 
-	ServerCommand("sm_resizehead #%d %f", userId, size)
+	PrintToServer("Client %d new size: %f", client, HeadScale[client]);
+
+	ServerCommand("sm_resizehead #%d %f", userId, HeadScale[client]);
 
 	return Plugin_Continue;
 }
@@ -177,14 +224,15 @@ public Action:OnPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast
 
 public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	// If using Syringe gun, increase head size of victim.
-	int weaponId = GetEventInt(event, "weaponid");
-	if (weaponId != 20) return Plugin_Continue; // Syringe gun is ID 20
+	// When killed, explode into gibs
 
+	// Get player info
 	int userId = GetEventInt(event, "userid");
 	int client = GetClientOfUserId(userId);
 
-	//Explode(client, userId);
+	// Reset head size
+	HeadScale[client] = g_fDefaultHeadSize;
+	ServerCommand("sm_resizehead #%d %f", userId, HeadScale[client]);
 
 	// Explode into gibs: https://forums.alliedmods.net/showthread.php?t=81874
 	CreateTimer(0.1, DeleteRagdoll, client)
@@ -208,7 +256,7 @@ public Action:OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcas
 	
 	CreateTimer(8.0, DeleteGibs, Ent)
 	
-	g_Explode[client] = 0
+	Explode[client] = false
 }
 
 // ----------------------------------------------------------------------------
@@ -240,20 +288,64 @@ public Action:DeleteGibs(Handle:timer, any:ent)
 
 // ----------------------------------------------------------------------------
 
-void ResetSize()
+void ResetClientState(int client)
 {
-	// Clear kv list
-	delete kvScale;
-	kvScale = new KeyValues("Shrink");
-
-	// Reset all sizes
-	for (new i = 1; i <= MaxClients; i++)
-	{
-		if (IsClientInGame(i) && (!IsFakeClient(i)) && IsPlayerAlive(i))
-		{
-			ServerCommand("sm_resizereset #%d", i) // Resets all targets' sizes to 1.0.
-		}
-	} 
-	PrintToChatAll("\x01\x0B You are normal size! Scale: 1.0")
-
+	Explode[client] = false;
 }
+
+// ----------------------------------------------------------------------------
+
+void ResetAllClients(float headSize)
+{
+	// Resets all targets' sizes to DefaultSize ConVar and reset client state. 
+	for (new client = 1; client < MaxClients; client++)
+	{
+		HeadScale[client] = headSize;			
+		ResetClientState(client);
+
+		if (IsClientConnected(client) && IsPlayerAlive(client))
+		{
+			int userId = GetClientUserId(client);
+			ServerCommand("sm_resizehead #%d %f", userId, headSize);
+		}
+	}
+	PrintToServer("%sReset head scale of all players to %d%%", CONSOLE_TAG, RoundToNearest(headSize * 100.0));
+}
+
+// ----------------------------------------------------------------------------
+
+void ForceClientToMedic(client)
+{
+	TF2_SetPlayerClass(client, TFClass_Medic);
+	if(IsPlayerAlive(client))
+	{
+		SetEntityHealth(client, 25);
+		TF2_RegeneratePlayer(client);
+		new weapon = GetPlayerWeaponSlot(client, TFWeaponSlot_Primary);
+		if(IsValidEntity(weapon))
+		{
+			SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon);
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+
+void RemoveAllExceptPrimaryWeapon(client)
+{
+	// Remove all weapon slots except the primary weapon slot
+	new weapon = -1;
+	for (new i = 1; i <= 5; i++)
+	{
+		if ((weapon = GetPlayerWeaponSlot(client, i)) != -1)
+		{
+			RemovePlayerItem(client, weapon);
+		}
+	}
+
+	// Force a player to select primary weapon
+	weapon = GetPlayerWeaponSlot(client, TFWeaponSlot_Primary);
+	SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon);
+}
+
+// ----------------------------------------------------------------------------
